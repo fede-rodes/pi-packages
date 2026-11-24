@@ -1,0 +1,10 @@
+{
+  "name": "pi-codex-quota",
+  "version": "0.1.0",
+  "description": "Show remaining Codex subscription quota in Pi’s footer",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
