@@ -8,7 +8,15 @@ quota 5h 38% left (3h39m) · weekly 75% left (5d14h)
 
 ## Try or install
 
-From the repository root, use Pi 1.6.0 or later and select a model from the `openai-codex` provider. The extension uses your existing Pi Codex login.
+Use Pi 1.6.0 or later and select a model from the `openai-codex` provider. The extension uses your existing Pi Codex login.
+
+Once released on npm, install with:
+
+```sh
+pi install npm:pi-codex-quota
+```
+
+To try or install from source, run these commands from the repository root:
 
 ```sh
 # Try for one session

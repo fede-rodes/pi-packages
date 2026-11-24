@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "description": "Show remaining Codex subscription quota in Pi’s footer",
   "type": "module",
-  "keywords": ["pi-package"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fede-rodes/pi-packages.git",
+    "directory": "packages/codex-quota"
+  },
+  "keywords": ["pi-package", "codex", "quota"],
+  "files": ["src/"],
   "pi": {
     "extensions": ["./src/index.ts"]
   }
