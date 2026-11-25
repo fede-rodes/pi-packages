@@ -1,3 +1,7 @@
+/**
+ * Fetches usage with Pi's existing Codex login and identifies the 5-hour and
+ * weekly windows. Formats the remaining percentages and reset countdowns.
+ */
 const usageUrl = "https://chatgpt.com/backend-api/wham/usage";
 
 export type QuotaWindow = { kind: "5h" | "weekly"; usedPercent: number; resetsAtMs: number };

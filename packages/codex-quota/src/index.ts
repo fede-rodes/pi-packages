@@ -2,6 +2,11 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { fetchQuota } from "./quota.ts";
 import { createQuotaStatus } from "./status.ts";
 
+/**
+ * Connects the quota status to Pi's session, model, and turn events.
+ * Shows it only for Codex and uses the same dim theme color as Pi's footer.
+ */
+
 const provider = "openai-codex";
 const statusKey = "codex-quota";
 

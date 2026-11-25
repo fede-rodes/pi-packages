@@ -1,5 +1,11 @@
 import { formatQuota, type QuotaWindow } from "./quota.ts";
 
+/**
+ * Controls what the quota line shows and when it refreshes. Starts in a loading
+ * state, limits turn-triggered refreshes to once per minute, and updates reset
+ * countdowns locally. Also handles timeouts, stale values, and cleanup.
+ */
+
 const minute = 60_000;
 const requestTimeout = 10_000;
 
