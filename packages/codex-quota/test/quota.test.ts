@@ -6,10 +6,7 @@ const now = Date.UTC(2026, 10, 24);
 const fiveHour = { limit_window_seconds: 18_000, used_percent: 62, reset_at: now / 1_000 + 13_140 };
 const weekly = { limit_window_seconds: 604_800, used_percent: 25, reset_at: now / 1_000 + 482_400 };
 const usage = { rate_limit: { primary_window: weekly, secondary_window: fiveHour } };
-const payload = Buffer.from(JSON.stringify({
-	"https://api.openai.com/auth": { chatgpt_account_id: "fake-account" },
-})).toString("base64url");
-const token = `header.${payload}.signature`;
+const auth = { token: "fake-token", accountId: "fake-account" };
 
 test("formats percent remaining and reset countdowns in duration order", () => {
 	assert.equal(formatQuota(parseQuota(usage), now), "quota 5h 38% left (3h39m) · weekly 75% left (5d14h)");
@@ -31,13 +28,13 @@ test("shows zero remaining for an exhausted window and clamps elapsed resets", (
 test("sends bearer auth to the fixed origin without following redirects", async () => {
 	const signal = new AbortController().signal;
 	let calls = 0;
-	const windows = await fetchQuota(async () => token, signal, async (url, init) => {
+	const windows = await fetchQuota(auth, signal, async (url, init) => {
 		calls++;
 		assert.equal(url, "https://chatgpt.com/backend-api/wham/usage");
 		assert.equal(init?.method, "GET");
 		assert.equal(init?.redirect, "error");
 		assert.equal(init?.signal, signal);
-		assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${token}`);
+		assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${auth.token}`);
 		assert.equal(new Headers(init?.headers).get("chatgpt-account-id"), "fake-account");
 		return Response.json(usage);
 	});
@@ -45,31 +42,23 @@ test("sends bearer auth to the fixed origin without following redirects", async 
 	assert.equal(windows.length, 2);
 });
 
-test("does not fetch without Codex auth or after cancellation", async () => {
+test("does not fetch after cancellation", async () => {
 	let calls = 0;
-	const request: typeof fetch = async () => {
+	await assert.rejects(fetchQuota(auth, AbortSignal.abort(), async () => {
 		calls++;
 		return Response.json(usage);
-	};
-	const controller = new AbortController();
-	await assert.rejects(fetchQuota(async () => undefined, controller.signal, request));
-	await assert.rejects(fetchQuota(async () => "header.e30.signature", controller.signal, request));
-	await assert.rejects(fetchQuota(async () => {
-		controller.abort();
-		return token;
-	}, controller.signal, request));
-	await assert.rejects(fetchQuota(async () => token, controller.signal, request));
+	}));
 	assert.equal(calls, 0);
 });
 
 test("does not expose service bodies or runtime errors", async () => {
 	const signal = new AbortController().signal;
 	for (const request of [
-		async () => new Response(token, { status: 401 }),
-		async () => Response.json({ message: token }),
-		async () => new Response(token),
-		async () => { throw new Error(token); },
+		async () => new Response(auth.token, { status: 401 }),
+		async () => Response.json({ message: auth.token }),
+		async () => new Response(auth.token),
+		async () => { throw new Error(auth.token); },
 	]) {
-		await assert.rejects(fetchQuota(async () => token, signal, request), { message: "Codex quota unavailable" });
+		await assert.rejects(fetchQuota(auth, signal, request), { message: "Codex quota unavailable" });
 	}
 });

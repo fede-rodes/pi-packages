@@ -6,8 +6,9 @@ import { formatQuota, type QuotaWindow } from "./quota.ts";
  * countdowns locally. Also handles timeouts, stale values, and cleanup.
  */
 
-const minute = 60_000;
-const requestTimeout = 10_000;
+const REFRESH_INTERVAL_MS = 60_000;
+const COUNTDOWN_TICK_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export function createQuotaStatus(
 	loadQuota: (signal: AbortSignal) => Promise<QuotaWindow[]>,
@@ -28,7 +29,7 @@ export function createQuotaStatus(
 
 	function scheduleRefresh() {
 		if (!active || !pending || inFlight || refreshTimer !== undefined) return;
-		const wait = minute - (Date.now() - lastStartedAt);
+		const wait = REFRESH_INTERVAL_MS - (Date.now() - lastStartedAt);
 		if (wait <= 0) {
 			refresh();
 		} else {
@@ -59,7 +60,7 @@ export function createQuotaStatus(
 			timeout: setTimeout(() => {
 				abort.abort();
 				finish();
-			}, requestTimeout),
+			}, REQUEST_TIMEOUT_MS),
 		};
 		void Promise.resolve().then(() => {
 			abort.signal.throwIfAborted();
@@ -72,7 +73,7 @@ export function createQuotaStatus(
 			if (active) return;
 			active = true;
 			setStatus("quota loading…");
-			displayTimer = setInterval(showWindows, minute);
+			displayTimer = setInterval(showWindows, COUNTDOWN_TICK_MS);
 			refresh();
 		},
 		afterTurn() {

@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { resolveCodexAuth } from "./auth.ts";
 import { fetchQuota } from "./quota.ts";
 import { createQuotaStatus } from "./status.ts";
 
@@ -7,8 +8,8 @@ import { createQuotaStatus } from "./status.ts";
  * Shows it only for Codex and uses the same dim theme color as Pi's footer.
  */
 
-const provider = "openai-codex";
-const statusKey = "codex-quota";
+const CODEX_PROVIDER = "openai-codex";
+const STATUS_KEY = "codex-quota";
 
 export default function codexQuota(pi: ExtensionAPI) {
 	let status: ReturnType<typeof createQuotaStatus> | undefined;
@@ -19,14 +20,17 @@ export default function codexQuota(pi: ExtensionAPI) {
 	}
 
 	function selectProvider(ctx: ExtensionContext, selected: string | undefined) {
-		if (ctx.mode !== "tui" || selected !== provider) {
+		if (ctx.mode !== "tui" || selected !== CODEX_PROVIDER) {
 			stop();
 			return;
 		}
 		if (status) return;
 		status = createQuotaStatus(
-			(signal) => fetchQuota(() => ctx.modelRegistry.getApiKeyForProvider(provider), signal),
-			(text) => ctx.ui.setStatus(statusKey, text === undefined ? undefined : ctx.ui.theme.fg("dim", text)),
+			async (signal) => {
+				const auth = await resolveCodexAuth(() => ctx.modelRegistry.getApiKeyForProvider(CODEX_PROVIDER), signal);
+				return fetchQuota(auth, signal);
+			},
+			(text) => ctx.ui.setStatus(STATUS_KEY, text === undefined ? undefined : ctx.ui.theme.fg("dim", text)),
 		);
 		status.start();
 	}
@@ -34,7 +38,7 @@ export default function codexQuota(pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => { selectProvider(ctx, ctx.model?.provider); });
 	pi.on("model_select", (event, ctx) => { selectProvider(ctx, event.model.provider); });
 	pi.on("turn_end", (event) => {
-		if (event.outcome === "completed" && event.message.role === "assistant" && event.message.provider === provider) {
+		if (event.outcome === "completed" && event.message.role === "assistant" && event.message.provider === CODEX_PROVIDER) {
 			status?.afterTurn();
 		}
 	});

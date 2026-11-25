@@ -1,8 +1,12 @@
+import type { CodexAuth } from "./auth.ts";
+
 /**
- * Fetches usage with Pi's existing Codex login and identifies the 5-hour and
- * weekly windows. Formats the remaining percentages and reset countdowns.
+ * Fetches usage and identifies the 5-hour and weekly windows. Formats the
+ * remaining percentages and reset countdowns.
  */
-const usageUrl = "https://chatgpt.com/backend-api/wham/usage";
+const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+const FIVE_HOUR_WINDOW_SECONDS = 18_000;
+const WEEKLY_WINDOW_SECONDS = 604_800;
 
 export type QuotaWindow = { kind: "5h" | "weekly"; usedPercent: number; resetsAtMs: number };
 
@@ -10,21 +14,25 @@ function record(value: unknown): Record<string, unknown> | undefined {
 	if (typeof value === "object" && value !== null) return value as Record<string, unknown>;
 }
 
+function parseWindow(value: unknown): QuotaWindow | undefined {
+	const row = record(value);
+	if (!row) return;
+
+	const { limit_window_seconds: duration, used_percent: usedPercent, reset_at: resetAt } = row;
+	const kind = duration === FIVE_HOUR_WINDOW_SECONDS ? "5h" : duration === WEEKLY_WINDOW_SECONDS ? "weekly" : undefined;
+	if (!kind) return;
+	if (typeof usedPercent !== "number" || !Number.isFinite(usedPercent) || usedPercent < 0 || usedPercent > 100) return;
+	if (typeof resetAt !== "number" || !Number.isSafeInteger(resetAt) || resetAt <= 0) return;
+
+	const resetsAtMs = resetAt * 1_000;
+	if (Number.isSafeInteger(resetsAtMs)) return { kind, usedPercent, resetsAtMs };
+}
+
 export function parseQuota(body: unknown): QuotaWindow[] {
 	const limit = record(record(body)?.rate_limit);
-	const windows = new Map<QuotaWindow["kind"], QuotaWindow>();
-	for (const field of ["primary_window", "secondary_window"] as const) {
-		const row = record(limit?.[field]);
-		if (!row) continue;
-		const { limit_window_seconds: duration, used_percent: usedPercent, reset_at: resetAt } = row;
-		const kind = duration === 18_000 ? "5h" : duration === 604_800 ? "weekly" : undefined;
-		if (!kind || windows.has(kind)) continue;
-		if (typeof usedPercent !== "number" || !Number.isFinite(usedPercent) || usedPercent < 0 || usedPercent > 100) continue;
-		if (typeof resetAt !== "number" || !Number.isSafeInteger(resetAt) || resetAt <= 0) continue;
-		const resetsAtMs = resetAt * 1_000;
-		if (Number.isSafeInteger(resetsAtMs)) windows.set(kind, { kind, usedPercent, resetsAtMs });
-	}
-	return [windows.get("5h"), windows.get("weekly")].filter((window) => window !== undefined);
+	const windows = [parseWindow(limit?.primary_window), parseWindow(limit?.secondary_window)];
+	return [windows.find((window) => window?.kind === "5h"), windows.find((window) => window?.kind === "weekly")]
+		.filter((window) => window !== undefined);
 }
 
 function countdown(ms: number): string {
@@ -43,22 +51,14 @@ export function formatQuota(windows: readonly QuotaWindow[], nowMs: number): str
 }
 
 export async function fetchQuota(
-	getAccessToken: () => Promise<string | undefined>,
+	{ token, accountId }: CodexAuth,
 	signal: AbortSignal,
 	request: typeof fetch = fetch,
 ): Promise<QuotaWindow[]> {
 	try {
 		signal.throwIfAborted();
-		const token = await getAccessToken();
-		signal.throwIfAborted();
-		const parts = token?.split(".") ?? [];
-		if (!token || parts.length !== 3) throw new Error();
-		// This claim is only used to route the request; ChatGPT validates the token.
-		const payload: unknown = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
-		const accountId = record(record(payload)?.["https://api.openai.com/auth"])?.chatgpt_account_id;
-		if (typeof accountId !== "string" || !accountId.trim()) throw new Error();
 
-		const response = await request(usageUrl, {
+		const response = await request(USAGE_URL, {
 			method: "GET",
 			headers: { Authorization: `Bearer ${token}`, "ChatGPT-Account-Id": accountId },
 			redirect: "error",

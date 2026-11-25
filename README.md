@@ -15,6 +15,7 @@ Review `.tool-versions` before trusting it in mise. From the repository root:
 ```sh
 mise trust .tool-versions
 mise install
+mise exec -- npm --prefix packages/codex-quota ci --ignore-scripts
 mise exec -- node --test packages/codex-quota/test/*.test.ts
 ```
 
